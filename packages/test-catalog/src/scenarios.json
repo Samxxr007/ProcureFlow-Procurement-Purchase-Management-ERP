@@ -1,0 +1,463 @@
+[
+  {
+    "scenarioId": "AUTH-001",
+    "title": "Employee self-approval prevention",
+    "description": "An employee cannot approve their own submitted purchase request even if attempting to call the approval endpoint.",
+    "category": "Role & Separation of Duties",
+    "initialState": "Employee A has a SUBMITTED purchase request PR-REQ-101",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee attempts to approve their own PR",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/purchase-requests/seed-pr-101/approve",
+        "payload": { "decision": "APPROVED", "comments": "Self-approving my requisition" },
+        "expectedHttpStatus": 403,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "id": "seed-pr-101" },
+            "expectedFields": { "status": "SUBMITTED" }
+          },
+          {
+            "table": "Approval",
+            "condition": { "purchaseRequestId": "seed-pr-101", "decision": "APPROVED" },
+            "expectedCount": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-002",
+    "title": "Cross-user resource isolation",
+    "description": "Employee B must not be able to update, delete or view private draft purchase requests owned by Employee A.",
+    "category": "Resource Ownership",
+    "initialState": "Employee A (alice) owns DRAFT PR seed-pr-100",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee B attempts to edit Employee A's draft request",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "bob_emp@procureflow.com",
+        "method": "PATCH",
+        "endpoint": "/api/purchase-requests/seed-pr-100",
+        "payload": { "title": "Tampered Title by B" },
+        "expectedHttpStatus": 403,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "id": "seed-pr-100" },
+            "expectedFields": { "requestedById": "usr-emp-1" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-003",
+    "title": "Unauthorized purchase order creation from unapproved request",
+    "description": "Procurement user cannot issue a purchase order for a request in DRAFT or SUBMITTED status.",
+    "category": "Workflow Authorization",
+    "initialState": "Purchase request seed-pr-101 is SUBMITTED (not APPROVED)",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Procurement attempts to create PO from unapproved PR",
+        "actorRole": "PROCUREMENT",
+        "actorEmail": "carol@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/purchase-orders",
+        "payload": {
+          "purchaseRequestId": "seed-pr-101",
+          "supplierId": "seed-supp-1",
+          "items": [{ "itemDescription": "Dell Precision Laptop", "quantity": 2, "unitPrice": 1450.00 }]
+        },
+        "expectedHttpStatus": 400,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "PurchaseOrder",
+            "condition": { "purchaseRequestId": "seed-pr-101" },
+            "expectedCount": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-004",
+    "title": "Payment rejection for unapproved request",
+    "description": "Finance user cannot process payment on an invoice whose underlying PR was never approved or verified.",
+    "category": "Financial Controls",
+    "initialState": "Invoice is linked to an unapproved/unverified flow",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Finance attempts to pay invoice for unapproved requisition",
+        "actorRole": "FINANCE",
+        "actorEmail": "dave@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/payments",
+        "payload": {
+          "invoiceId": "seed-inv-unverified",
+          "paymentMethod": "WIRE_TRANSFER",
+          "idempotencyKey": "idem-key-auth-004-test"
+        },
+        "expectedHttpStatus": 400,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "Payment",
+            "condition": { "idempotencyKey": "idem-key-auth-004-test" },
+            "expectedCount": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-005",
+    "title": "Payment rejection prior to goods receipt",
+    "description": "Finance cannot verify or pay an invoice before goods receipt has been recorded and accepted by procurement.",
+    "category": "3-Way Matching Rules",
+    "initialState": "PO exists but GoodsReceipt is missing or status is not accepted",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Finance attempts to verify invoice when goods are not received",
+        "actorRole": "FINANCE",
+        "actorEmail": "dave@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/invoices/seed-inv-no-gr/verify",
+        "payload": { "notes": "Attempt verification prior to GR" },
+        "expectedHttpStatus": 400,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "Invoice",
+            "condition": { "id": "seed-inv-no-gr" },
+            "expectedFields": { "status": "PENDING" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-006",
+    "title": "Modification of approved requests blocked",
+    "description": "Once a purchase request is APPROVED, employee or manager cannot arbitrarily alter line items, prices or quantities.",
+    "category": "Data Immutability",
+    "initialState": "Purchase request seed-pr-102 is APPROVED",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee attempts to mutate line items of approved PR",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "PATCH",
+        "endpoint": "/api/purchase-requests/seed-pr-102",
+        "payload": { "title": "Sneak Price Hike", "totalAmount": 99999.00 },
+        "expectedHttpStatus": 400,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "id": "seed-pr-102" },
+            "expectedFields": { "status": "APPROVED" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-007",
+    "title": "Invalid workflow state transition rejection",
+    "description": "Direct transition from DRAFT to PAID or INVOICE_VERIFIED without required intermediate approval and fulfillment steps is blocked.",
+    "category": "State Machine Validation",
+    "initialState": "Purchase request seed-pr-100 is DRAFT",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "User attempts illegal jump from DRAFT to INVOICE_VERIFIED",
+        "actorRole": "ADMIN",
+        "actorEmail": "admin@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/purchase-requests/seed-pr-100/transition",
+        "payload": { "targetStatus": "INVOICE_VERIFIED" },
+        "expectedHttpStatus": 400,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "id": "seed-pr-100" },
+            "expectedFields": { "status": "DRAFT" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-008",
+    "title": "Stale session access after logout",
+    "description": "A JWT session token must be invalidated upon explicit logout, preventing further authenticated API operations.",
+    "category": "Session Lifecycle",
+    "initialState": "Authenticated user session actively logged in",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "User logs out via auth endpoint",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/auth/logout",
+        "expectedHttpStatus": 200,
+        "expectedPermissionOutcome": "ALLOW"
+      },
+      {
+        "stepNumber": 2,
+        "name": "Attempting to query profile with invalidated session",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "GET",
+        "endpoint": "/api/auth/me",
+        "expectedHttpStatus": 401,
+        "expectedPermissionOutcome": "DENY"
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-009",
+    "title": "Duplicate payment idempotency enforcement",
+    "description": "Sending duplicate payment requests with the same idempotency key or on an already PAID invoice must be rejected.",
+    "category": "Financial Integrity",
+    "initialState": "Invoice seed-inv-101 has been fully verified and paid once",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Finance submits repeated payment request with duplicate idempotency key",
+        "actorRole": "FINANCE",
+        "actorEmail": "dave@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/payments",
+        "payload": {
+          "invoiceId": "seed-inv-101",
+          "paymentMethod": "EFT_ACH",
+          "idempotencyKey": "seed-payment-idem-101"
+        },
+        "expectedHttpStatus": 409,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "Payment",
+            "condition": { "idempotencyKey": "seed-payment-idem-101" },
+            "expectedCount": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-010",
+    "title": "Unauthorized administrative action by non-admin",
+    "description": "Employees, managers, procurement and finance users cannot access user management, role modification or QA config.",
+    "category": "Privilege Escalation",
+    "initialState": "Standard authenticated non-admin user",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee attempts to query system audit log",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "GET",
+        "endpoint": "/api/audit-events",
+        "expectedHttpStatus": 403,
+        "expectedPermissionOutcome": "DENY"
+      },
+      {
+        "stepNumber": 2,
+        "name": "Employee attempts to create a new user account",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/users",
+        "payload": {
+          "name": "Rogue User",
+          "email": "rogue@procureflow.com",
+          "role": "ADMIN",
+          "password": "Password123!"
+        },
+        "expectedHttpStatus": 403,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "User",
+            "condition": { "email": "rogue@procureflow.com" },
+            "expectedCount": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-011",
+    "title": "Refresh token reuse detection and revocation",
+    "description": "Reusing an already rotated or invalidated refresh token must immediately revoke all tokens in the family.",
+    "category": "Session Lifecycle",
+    "initialState": "Valid refresh token was exchanged and new token issued",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Client uses an expired or already rotated refresh token",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/auth/refresh",
+        "payload": { "refreshToken": "already-consumed-refresh-token-xyz" },
+        "expectedHttpStatus": 401,
+        "expectedPermissionOutcome": "DENY"
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-012",
+    "title": "Resource identifier manipulation (IDOR) on supplier modification",
+    "description": "Unauthorized roles or manipulating entity IDs without permission is blocked.",
+    "category": "Resource Ownership",
+    "initialState": "Active supplier seed-supp-1",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee attempts to alter supplier bank and tax details",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "PATCH",
+        "endpoint": "/api/suppliers/seed-supp-1",
+        "payload": { "taxId": "FRAUDULENT-TAX-ID" },
+        "expectedHttpStatus": 403,
+        "expectedPermissionOutcome": "DENY",
+        "stateAssertions": [
+          {
+            "table": "Supplier",
+            "condition": { "id": "seed-supp-1" },
+            "expectedFields": { "taxId": "TAX-US-9901" }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-013",
+    "title": "Positive: Authorized employee creates purchase requisition",
+    "description": "An authenticated employee can successfully create, edit and submit their own valid purchase request.",
+    "category": "Positive Workflow",
+    "initialState": "Employee alice logged in with valid session",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Employee creates new DRAFT purchase request",
+        "actorRole": "EMPLOYEE",
+        "actorEmail": "alice@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/purchase-requests",
+        "payload": {
+          "title": "Engineering Ergonomic Chairs Q3",
+          "justification": "Ergonomic equipment upgrade for backend infrastructure team",
+          "requiredDate": "2026-12-15T00:00:00.000Z",
+          "items": [
+            {
+              "productId": "seed-prod-1",
+              "itemDescription": "Steelcase Gesture Ergonomic Chair",
+              "quantity": 3,
+              "unitPrice": 850.00
+            }
+          ]
+        },
+        "expectedHttpStatus": 201,
+        "expectedPermissionOutcome": "ALLOW",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "title": "Engineering Ergonomic Chairs Q3" },
+            "expectedCount": 1,
+            "expectedFields": { "status": "DRAFT", "totalAmount": 2550.00 }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-014",
+    "title": "Positive: Manager approves subordinate's submitted request",
+    "description": "A designated manager can review and approve a submitted purchase requisition within their department.",
+    "category": "Positive Workflow",
+    "initialState": "Purchase request seed-pr-101 is SUBMITTED by employee alice",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Manager approves submitted requisition with business comments",
+        "actorRole": "MANAGER",
+        "actorEmail": "bob@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/purchase-requests/seed-pr-101/approve",
+        "payload": { "decision": "APPROVED", "comments": "Approved within team quarterly budget allocation." },
+        "expectedHttpStatus": 200,
+        "expectedPermissionOutcome": "ALLOW",
+        "stateAssertions": [
+          {
+            "table": "PurchaseRequest",
+            "condition": { "id": "seed-pr-101" },
+            "expectedFields": { "status": "APPROVED" }
+          },
+          {
+            "table": "Approval",
+            "condition": { "purchaseRequestId": "seed-pr-101", "decision": "APPROVED" },
+            "expectedCount": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "scenarioId": "AUTH-015",
+    "title": "Positive: Complete verified 3-way match invoice payment",
+    "description": "Finance user can process legitimate payment once PO is fulfilled, goods receipt confirmed and invoice verified.",
+    "category": "Positive Workflow",
+    "initialState": "Invoice seed-inv-102 is VERIFIED with accepted GoodsReceipt and issued PO",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "name": "Finance processes verified payment with unique idempotency key",
+        "actorRole": "FINANCE",
+        "actorEmail": "dave@procureflow.com",
+        "method": "POST",
+        "endpoint": "/api/payments",
+        "payload": {
+          "invoiceId": "seed-inv-102",
+          "paymentMethod": "CORPORATE_CARD",
+          "idempotencyKey": "valid-idem-key-auth-015-exec",
+          "referenceNotes": "Paid per terms net 30"
+        },
+        "expectedHttpStatus": 201,
+        "expectedPermissionOutcome": "ALLOW",
+        "stateAssertions": [
+          {
+            "table": "Payment",
+            "condition": { "idempotencyKey": "valid-idem-key-auth-015-exec" },
+            "expectedCount": 1,
+            "expectedFields": { "status": "COMPLETED" }
+          },
+          {
+            "table": "Invoice",
+            "condition": { "id": "seed-inv-102" },
+            "expectedFields": { "status": "PAID" }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "name": "@procureflow/ml-service",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "python run.py",
+    "start": "python run.py"
+  }
+}

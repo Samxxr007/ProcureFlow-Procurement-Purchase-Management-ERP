@@ -1,0 +1,202 @@
+[
+  {
+    "testId": "TC-AUTH-POL-01",
+    "name": "Authorization policy role matrix checks",
+    "filePath": "tests/unit/policies/AuthorizationPolicy.test.ts",
+    "module": "authorization",
+    "relatedSourceFiles": ["apps/api/src/policies/AuthorizationPolicy.ts"],
+    "relatedRoles": ["ADMIN", "EMPLOYEE", "MANAGER", "PROCUREMENT", "FINANCE"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 42
+  },
+  {
+    "testId": "TC-AUTH-POL-02",
+    "name": "Self-approval boundary checks",
+    "filePath": "tests/unit/policies/AuthorizationPolicy.test.ts",
+    "module": "authorization",
+    "relatedSourceFiles": ["apps/api/src/policies/AuthorizationPolicy.ts"],
+    "relatedRoles": ["EMPLOYEE", "MANAGER"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 35
+  },
+  {
+    "testId": "TC-WORKFLOW-01",
+    "name": "Procurement workflow state machine valid transitions",
+    "filePath": "tests/unit/workflows/WorkflowService.test.ts",
+    "module": "workflow",
+    "relatedSourceFiles": ["apps/api/src/workflows/WorkflowService.ts"],
+    "relatedRoles": ["EMPLOYEE", "MANAGER", "PROCUREMENT", "FINANCE"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 48
+  },
+  {
+    "testId": "TC-WORKFLOW-02",
+    "name": "Workflow transition rejection on illegal status jump",
+    "filePath": "tests/unit/workflows/WorkflowService.test.ts",
+    "module": "workflow",
+    "relatedSourceFiles": ["apps/api/src/workflows/WorkflowService.ts"],
+    "relatedRoles": ["EMPLOYEE", "MANAGER"],
+    "criticality": "HIGH",
+    "avgDurationMs": 39
+  },
+  {
+    "testId": "TC-API-AUTH-01",
+    "name": "User authentication, JWT generation and session registration",
+    "filePath": "tests/integration/auth.test.ts",
+    "module": "authentication",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/AuthController.ts",
+      "apps/api/src/services/AuthService.ts",
+      "apps/api/src/middleware/auth.ts"
+    ],
+    "relatedRoles": ["ADMIN", "EMPLOYEE", "MANAGER", "PROCUREMENT", "FINANCE"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 110
+  },
+  {
+    "testId": "TC-API-AUTH-02",
+    "name": "Refresh token rotation and revoked session rejection",
+    "filePath": "tests/integration/auth.test.ts",
+    "module": "authentication",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/AuthController.ts",
+      "apps/api/src/services/AuthService.ts",
+      "apps/api/src/middleware/auth.ts"
+    ],
+    "relatedRoles": ["ADMIN", "EMPLOYEE"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 95
+  },
+  {
+    "testId": "TC-API-PR-01",
+    "name": "Create purchase request with line items and validation",
+    "filePath": "tests/integration/purchase-requests.test.ts",
+    "module": "purchase-requests",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/PurchaseRequestController.ts",
+      "apps/api/src/services/PurchaseRequestService.ts"
+    ],
+    "relatedRoles": ["EMPLOYEE", "ADMIN"],
+    "criticality": "HIGH",
+    "avgDurationMs": 85
+  },
+  {
+    "testId": "TC-API-PR-02",
+    "name": "Employee isolation - PR access restriction",
+    "filePath": "tests/integration/purchase-requests.test.ts",
+    "module": "purchase-requests",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/PurchaseRequestController.ts",
+      "apps/api/src/policies/AuthorizationPolicy.ts"
+    ],
+    "relatedRoles": ["EMPLOYEE"],
+    "criticality": "HIGH",
+    "avgDurationMs": 75
+  },
+  {
+    "testId": "TC-API-APP-01",
+    "name": "Manager approval queue and PR decision recording",
+    "filePath": "tests/integration/approvals.test.ts",
+    "module": "approvals",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/ApprovalController.ts",
+      "apps/api/src/services/ApprovalService.ts"
+    ],
+    "relatedRoles": ["MANAGER", "ADMIN"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 90
+  },
+  {
+    "testId": "TC-API-SUPP-01",
+    "name": "Supplier creation, validation and status updates",
+    "filePath": "tests/integration/suppliers.test.ts",
+    "module": "suppliers",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/SupplierController.ts",
+      "apps/api/src/services/SupplierService.ts"
+    ],
+    "relatedRoles": ["PROCUREMENT", "ADMIN"],
+    "criticality": "MEDIUM",
+    "avgDurationMs": 65
+  },
+  {
+    "testId": "TC-API-PO-01",
+    "name": "Purchase Order creation from approved PR",
+    "filePath": "tests/integration/purchase-orders.test.ts",
+    "module": "purchase-orders",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/PurchaseOrderController.ts",
+      "apps/api/src/services/PurchaseOrderService.ts"
+    ],
+    "relatedRoles": ["PROCUREMENT", "ADMIN"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 115
+  },
+  {
+    "testId": "TC-API-GR-01",
+    "name": "Goods receipt recording and partial vs full delivery",
+    "filePath": "tests/integration/goods-receipts.test.ts",
+    "module": "goods-receipts",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/GoodsReceiptController.ts",
+      "apps/api/src/services/GoodsReceiptService.ts"
+    ],
+    "relatedRoles": ["PROCUREMENT", "ADMIN"],
+    "criticality": "HIGH",
+    "avgDurationMs": 105
+  },
+  {
+    "testId": "TC-API-INV-01",
+    "name": "Invoice verification and 3-way matching rules",
+    "filePath": "tests/integration/invoices.test.ts",
+    "module": "invoices",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/InvoiceController.ts",
+      "apps/api/src/services/InvoiceService.ts"
+    ],
+    "relatedRoles": ["FINANCE", "ADMIN"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 120
+  },
+  {
+    "testId": "TC-API-PAY-01",
+    "name": "Payment processing and idempotency validation",
+    "filePath": "tests/integration/payments.test.ts",
+    "module": "payments",
+    "relatedSourceFiles": [
+      "apps/api/src/controllers/PaymentController.ts",
+      "apps/api/src/services/PaymentService.ts"
+    ],
+    "relatedRoles": ["FINANCE", "ADMIN"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 130
+  },
+  {
+    "testId": "TC-API-AUDIT-01",
+    "name": "Audit trail logging on sensitive financial and state actions",
+    "filePath": "tests/integration/audit.test.ts",
+    "module": "audit",
+    "relatedSourceFiles": [
+      "apps/api/src/services/AuditService.ts",
+      "apps/api/src/controllers/AuditController.ts"
+    ],
+    "relatedRoles": ["ADMIN"],
+    "criticality": "MEDIUM",
+    "avgDurationMs": 60
+  },
+  {
+    "testId": "TC-SCENARIO-AUTH-ALL",
+    "name": "Stateful Multi-Role API Authorization Scenarios (AUTH-001 - AUTH-015)",
+    "filePath": "tests/authorization/run-scenarios.test.ts",
+    "module": "qa-engine",
+    "relatedSourceFiles": [
+      "apps/api/src/testing/ScenarioRunner.ts",
+      "apps/api/src/testing/ResponseOracle.ts",
+      "apps/api/src/testing/StateOracle.ts",
+      "apps/api/src/policies/AuthorizationPolicy.ts"
+    ],
+    "relatedRoles": ["ADMIN", "EMPLOYEE", "MANAGER", "PROCUREMENT", "FINANCE"],
+    "criticality": "CRITICAL",
+    "avgDurationMs": 650
+  }
+]

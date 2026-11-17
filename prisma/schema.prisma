@@ -1,0 +1,379 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String
+  passwordHash     String
+  role             String            // ADMIN, EMPLOYEE, MANAGER, PROCUREMENT, FINANCE
+  department       String?
+  isActive         Boolean           @default(true)
+  sessions         Session[]
+  purchaseRequests PurchaseRequest[]
+  approvals        Approval[]
+  goodsReceipts    GoodsReceipt[]
+  invoicesVerified Invoice[]
+  payments         Payment[]
+  auditEvents      AuditEvent[]
+  defectsAssigned  Defect[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model Supplier {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  email          String
+  phone          String?
+  address        String?
+  taxId          String?
+  isActive       Boolean         @default(true)
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Product {
+  id                  String                @id @default(cuid())
+  code                String                @unique
+  name                String
+  description         String?
+  unit                String                @default("units")
+  category            String
+  unitPrice           Float                 @default(0.0)
+  isActive            Boolean               @default(true)
+  purchaseRequestItems PurchaseRequestItem[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+}
+
+model PurchaseRequest {
+  id            String                @id @default(cuid())
+  prNumber      String                @unique
+  title         String
+  status        String                @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PURCHASE_ORDER_CREATED, PARTIALLY_RECEIVED, RECEIVED, INVOICE_VERIFIED, PAID, CANCELLED
+  justification String
+  requiredDate  DateTime
+  requestedById String
+  requestedBy   User                  @relation(fields: [requestedById], references: [id])
+  totalAmount   Float                 @default(0.0)
+  items         PurchaseRequestItem[]
+  approvals     Approval[]
+  purchaseOrder PurchaseOrder?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?        @relation(fields: [productId], references: [id])
+  itemDescription   String
+  quantity          Float
+  unitPrice         Float
+  totalPrice        Float
+  createdAt         DateTime        @default(now())
+}
+
+model Approval {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  approverId        String
+  approver          User            @relation(fields: [approverId], references: [id])
+  decision          String          // APPROVED, REJECTED
+  comments          String?
+  decidedAt         DateTime        @default(now())
+}
+
+model PurchaseOrder {
+  id                String              @id @default(cuid())
+  poNumber          String              @unique
+  purchaseRequestId String              @unique
+  purchaseRequest   PurchaseRequest     @relation(fields: [purchaseRequestId], references: [id])
+  supplierId        String
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  status            String              @default("ISSUED") // ISSUED, PARTIALLY_RECEIVED, FULFILLED, CANCELLED
+  totalAmount       Float               @default(0.0)
+  issuedAt          DateTime            @default(now())
+  items             PurchaseOrderItem[]
+  goodsReceipts     GoodsReceipt[]
+  invoices          Invoice[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemDescription String
+  quantity        Float
+  unitPrice       Float
+  totalPrice      Float
+}
+
+model GoodsReceipt {
+  id                 String             @id @default(cuid())
+  grNumber           String             @unique
+  purchaseOrderId    String
+  purchaseOrder      PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  status             String             @default("ACCEPTED") // ACCEPTED, PARTIAL, REJECTED
+  deliveryNoteNumber String?
+  receivedById       String
+  receivedBy         User               @relation(fields: [receivedById], references: [id])
+  receivedAt         DateTime           @default(now())
+  notes              String?
+  items              GoodsReceiptItem[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model GoodsReceiptItem {
+  id               String       @id @default(cuid())
+  goodsReceiptId   String
+  goodsReceipt     GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  itemDescription  String
+  orderedQuantity  Float
+  receivedQuantity Float
+  damagedQuantity  Float        @default(0.0)
+}
+
+model Invoice {
+  id              String         @id @default(cuid())
+  invoiceNumber   String         @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  supplierId      String
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  amount          Float
+  status          String         @default("PENDING") // PENDING, VERIFIED, REJECTED, PAID
+  dueDate         DateTime
+  verifiedById    String?
+  verifiedBy      User?          @relation(fields: [verifiedById], references: [id])
+  verifiedAt      DateTime?
+  payments        Payment[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  paymentNumber  String        @unique
+  invoiceId      String
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id])
+  amount         Float
+  status         String        @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  idempotencyKey String        @unique
+  paidById       String
+  paidBy         User          @relation(fields: [paidById], references: [id])
+  paidAt         DateTime      @default(now())
+  paymentMethod  String        @default("WIRE_TRANSFER")
+  referenceNotes String?
+  createdAt      DateTime      @default(now())
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  entityName String
+  entityId   String
+  action     String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  details    String?  // JSON string
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+// ---------------- QA Platform Models ----------------
+
+model TestCase {
+  testId             String               @id
+  name               String
+  filePath           String
+  module             String
+  relatedSourceFiles String               // JSON array
+  relatedRoles       String               // JSON array
+  criticality        String               @default("HIGH") // CRITICAL, HIGH, MEDIUM, LOW
+  avgDurationMs      Int                  @default(50)
+  results            TestCaseResult[]
+  history            TestExecutionHistory[]
+  predictions        TestPrediction[]
+  defects            Defect[]
+  createdAt          DateTime             @default(now())
+}
+
+model TestRun {
+  id               String               @id @default(cuid())
+  mode             String               // FULL, EXPANDED, SELECTIVE, SHADOW
+  status           String               // RUNNING, COMPLETED, FAILED, CANCELLED
+  totalTests       Int                  @default(0)
+  selectedTests    Int                  @default(0)
+  passedTests      Int                  @default(0)
+  failedTests      Int                  @default(0)
+  blockedTests     Int                  @default(0)
+  skippedTests     Int                  @default(0)
+  durationMs       Int                  @default(0)
+  commitHash       String?
+  modelVersion     String?
+  environment      String               @default("standard") // standard, vulnerable
+  results          TestCaseResult[]
+  scenarioResults  TestScenarioResult[]
+  defects          Defect[]
+  startedAt        DateTime             @default(now())
+  completedAt      DateTime?
+}
+
+model TestCaseResult {
+  id           String      @id @default(cuid())
+  testRunId    String
+  testRun      TestRun     @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testId       String
+  testCase     TestCase    @relation(fields: [testId], references: [testId])
+  outcome      String      // PASSED, FAILED, BLOCKED, NOT_EXECUTED, SKIPPED
+  durationMs   Int         @default(0)
+  errorMessage String?
+  executedAt   DateTime    @default(now())
+}
+
+model TestScenario {
+  scenarioId      String               @id
+  title           String
+  description     String
+  category        String
+  initialState    String
+  stepsJson       String               // JSON array of steps
+  scenarioResults TestScenarioResult[]
+}
+
+model TestScenarioResult {
+  id                String       @id @default(cuid())
+  testRunId         String
+  testRun           TestRun      @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  scenarioId        String
+  scenario          TestScenario @relation(fields: [scenarioId], references: [scenarioId])
+  httpStatus        Int
+  permissionOutcome String       // ALLOW, DENY
+  stateOutcome      String       // VALID, INVALID
+  status            String       // PASSED, FAILED
+  errorMessage      String?
+  executedAt        DateTime     @default(now())
+}
+
+model Defect {
+  defectId          String    @id
+  title             String
+  description       String
+  relatedTestId     String?
+  testCase          TestCase? @relation(fields: [relatedTestId], references: [testId])
+  relatedRunId      String?
+  testRun           TestRun?  @relation(fields: [relatedRunId], references: [id])
+  module            String
+  severity          String    // CRITICAL, HIGH, MEDIUM, LOW
+  priority          String    // P1, P2, P3, P4
+  stepsToReproduce  String
+  expectedBehavior  String
+  actualBehavior    String
+  environment       String    @default("vulnerable-profile")
+  status            String    @default("OPEN") // OPEN, IN_PROGRESS, FIXED, RETEST, CLOSED, REJECTED, DEFERRED
+  assignedToId      String?
+  assignedTo        User?     @relation(fields: [assignedToId], references: [id])
+  retestResult      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model GitCommit {
+  commitHash  String        @id
+  message     String
+  author      String
+  timestamp   DateTime
+  branch      String        @default("main")
+  parentHash  String?
+  files       ChangedFile[]
+  predictions TestPrediction[]
+  decisions   SelectionDecision[]
+}
+
+model ChangedFile {
+  id         String    @id @default(cuid())
+  commitHash String
+  commit     GitCommit @relation(fields: [commitHash], references: [commitHash], onDelete: Cascade)
+  filePath   String
+  changeType String    // ADD, MODIFY, DELETE
+  additions  Int       @default(0)
+  deletions  Int       @default(0)
+}
+
+model TestExecutionHistory {
+  id              String    @id @default(cuid())
+  commitHash      String
+  testId          String
+  testCase        TestCase  @relation(fields: [testId], references: [testId])
+  outcome         String    // PASSED, FAILED
+  durationMs      Int
+  timestamp       DateTime  @default(now())
+  failureCategory String?
+}
+
+model ModelTrainingRun {
+  modelVersion String   @id
+  algorithm    String   // LogisticRegression, RandomForest
+  trainSamples Int
+  testSamples  Int
+  accuracy     Float
+  precision    Float
+  recall       Float
+  f1Score      Float
+  rocAuc       Float
+  trainedAt    DateTime @default(now())
+  metricsJson  String   // JSON detailed metrics
+}
+
+model TestPrediction {
+  id                String    @id @default(cuid())
+  commitHash        String
+  commit            GitCommit @relation(fields: [commitHash], references: [commitHash], onDelete: Cascade)
+  testId            String
+  testCase          TestCase  @relation(fields: [testId], references: [testId])
+  probability       Float
+  predictedOutcome  String    // PASSED, FAILED
+  actualOutcome     String?
+  featureScore      Float     @default(0.0)
+  selectionDecision String    // SELECTED, SKIPPED
+  confidenceScore   Float     @default(0.0)
+  modelVersion      String?
+  createdAt         DateTime  @default(now())
+}
+
+model SelectionDecision {
+  id              String    @id @default(cuid())
+  commitHash      String
+  commit          GitCommit @relation(fields: [commitHash], references: [commitHash], onDelete: Cascade)
+  testId          String
+  mode            String    // FULL, EXPANDED, SELECTIVE, SHADOW
+  isSelected      Boolean
+  selectionReason String
+  createdAt       DateTime  @default(now())
+}

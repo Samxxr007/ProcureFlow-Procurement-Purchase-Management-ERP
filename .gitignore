@@ -48,6 +48,7 @@ wheels/
 venv/
 ENV/
 stored_models/*.joblib
+**/*.joblib
 
 # Logs
 npm-debug.log*
